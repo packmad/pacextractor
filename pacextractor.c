@@ -8,6 +8,8 @@
 #include <unistd.h>
 #include <stdint.h>
 #include <sys/stat.h>
+#include <stddef.h>
+#include <string.h>
 
 typedef struct {
     int16_t someField[24];
@@ -49,15 +51,27 @@ void getString(int16_t* baseString, char* resString) {
     *resString = 0;
 }
 
+int isDirectory(const char *path) {
+    struct stat statbuf;
+    if (stat(path, &statbuf) != 0)
+        return 0;
+    return S_ISDIR(statbuf.st_mode);
+}
+
 int main(int argc, char** argv) {
-    if(argc < 2) {
-        printf("command format:\n   capextractor <firmware name>.pac");
+    if(argc < 2 || argc > 3) {
+        printf("command format:\n   capextractor <firmware name>.pac [output_directory]");
         exit(EXIT_FAILURE);
     }
     
     int fd = open(argv[1], O_RDONLY);
     if (fd == -1) {
         printf("file %s is not find", argv[1]);
+        exit(EXIT_FAILURE);
+    }
+
+    if (argc == 3 && !isDirectory(argv[2])) {
+        printf("file %s is not a directory", argv[2]);
         exit(EXIT_FAILURE);
     }
     
@@ -115,6 +129,11 @@ int main(int argc, char** argv) {
         lseek(fd, partHeaders[i]->partitionAddrInPac, SEEK_SET);
         getString(partHeaders[i]->fileName, buffer);
         remove(buffer);
+        if (argc == 3) {
+            char tmp_buff[256];
+            strcpy(tmp_buff, buffer);
+            snprintf(buffer, sizeof(buffer), "%s%s", argv[2], tmp_buff);
+        }
         int fd_new = open(buffer, O_WRONLY | O_CREAT, 0666);
         printf("Extract %s\n", buffer);
         uint32_t dataSizeLeft = partHeaders[i]->partitionSize;
